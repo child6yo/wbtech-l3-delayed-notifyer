@@ -65,7 +65,7 @@ func (rp *RedisPoller) processReadyTasks(ctx context.Context) {
 
 // обработка уведомления.
 func (rp *RedisPoller) handleNotification(ctx context.Context, notificationID string) {
-	payload, err := rp.storage.Get(ctx, notificationID)
+	payload, err := rp.storage.Get(ctx, "notification:"+notificationID)
 	if err != nil {
 		return
 	}
@@ -78,7 +78,7 @@ func (rp *RedisPoller) handleNotification(ctx context.Context, notificationID st
 		rp.errCh <- err
 	}
 
-	if err := rp.storage.Remove(ctx, notificationID); err != nil {
+	if err := rp.storage.Remove(ctx, "notification:"+notificationID); err != nil {
 		rp.errCh <- err
 	}
 }
