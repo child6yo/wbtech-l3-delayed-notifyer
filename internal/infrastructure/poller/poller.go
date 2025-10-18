@@ -14,20 +14,26 @@ type storage interface {
 }
 
 type publisher interface {
-	Publish(ctx context.Context, queueName string, value interface{}) error
+	Publish(value string) error
 }
 
+// RedisPoller мониторит хранилище уведомлений в поисках тех, которые пора отправить.
+// Отправляет необходимые уведомления в паблишер. Пишет ошибки в отдельный канал.
 type RedisPoller struct {
-	storage   storage
-	publisher publisher
+	storage        storage
+	publisher      publisher
+	delayedSetName string
+	errCh          chan<- error
 }
 
-func NewRedisPoller(storage storage, publisher publisher) *RedisPoller {
-	return &RedisPoller{storage: storage, publisher: publisher}
+// NewRedisPoller создает новый RedisPoller.
+func NewRedisPoller(storage storage, publisher publisher, delayedSetName string, errCh chan<- error) *RedisPoller {
+	return &RedisPoller{
+		storage: storage, publisher: publisher, delayedSetName: delayedSetName, errCh: errCh}
 }
 
-func (rp *RedisPoller) Run(ctx context.Context) {
-	ticker := time.NewTicker(200 * time.Millisecond)
+// Run запускает поллер. Поллер запускает функцию-воркер с частотой тикера.
+func (rp *RedisPoller) Run(ctx context.Context, ticker *time.Ticker) {
 	defer ticker.Stop()
 
 	for {
@@ -39,33 +45,35 @@ func (rp *RedisPoller) Run(ctx context.Context) {
 		}
 	}
 }
+
+// мониторинговая функция-воркер
 func (rp *RedisPoller) processReadyTasks(ctx context.Context) {
 	now := time.Now().UnixMilli()
 
-	taskIDs, err := rp.storage.SortedSetRangeByScore(
-		ctx, "delayed:notifications", "-inf", strconv.FormatInt(now, 10), 0, 50)
+	notificationIDs, err := rp.storage.SortedSetRangeByScore(
+		ctx, rp.delayedSetName, "-inf", strconv.FormatInt(now, 10), 0, 10)
 	if err != nil {
+		rp.errCh <- err
 	}
 
-	for _, id := range taskIDs {
-		payload, err := rp.storage.Get(ctx, "task:"+id)
-		if err != nil {
-			continue
-		}
+	for _, id := range notificationIDs {
+		rp.handleNotification(ctx, id)
+	}
+}
 
-		// if err := rp.rabbitPublisher.Publish(ctx, "notifications", payload); err != nil {
-		// 	continue
-		// }
-		if err := rp.publisher.Publish(ctx, "notifications", payload); err != nil {
-			continue
-		}
+// обработка уведомления.
+func (rp *RedisPoller) handleNotification(ctx context.Context, notificationID string) {
+	payload, _ := rp.storage.Get(ctx, notificationID)
 
-		// 
-		if err := rp.storage.SortedSetRemove(ctx, "delayed:notifications", id); err != nil {
+	if err := rp.publisher.Publish(payload); err != nil {
+		rp.errCh <- err
+	}
 
-		}
-		if err := rp.storage.Remove(ctx, "task:"+id); err != nil {
+	if err := rp.storage.SortedSetRemove(ctx, rp.delayedSetName, notificationID); err != nil {
+		rp.errCh <- err
+	}
 
-		}
+	if err := rp.storage.Remove(ctx, notificationID); err != nil {
+		rp.errCh <- err
 	}
 }
