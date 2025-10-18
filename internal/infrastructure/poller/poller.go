@@ -41,6 +41,8 @@ func (rp *RedisPoller) Run(ctx context.Context, ticker *time.Ticker) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// с каждым тиком запускаем воркер
+			// следующий тик будет доступен только если функция завершена (очевидно)
 			rp.processReadyTasks(ctx)
 		}
 	}
@@ -63,7 +65,10 @@ func (rp *RedisPoller) processReadyTasks(ctx context.Context) {
 
 // обработка уведомления.
 func (rp *RedisPoller) handleNotification(ctx context.Context, notificationID string) {
-	payload, _ := rp.storage.Get(ctx, notificationID)
+	payload, err := rp.storage.Get(ctx, notificationID)
+	if err != nil {
+		return
+	}
 
 	if err := rp.publisher.Publish(payload); err != nil {
 		rp.errCh <- err
