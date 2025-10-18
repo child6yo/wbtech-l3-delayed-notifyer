@@ -25,8 +25,7 @@ func main() {
 		log.Println(err)
 	}
 
-	errCh := make(chan error)
-	pl := poller.NewRedisPoller(rds, pbl, "delayed_queue", errCh)
+	pl := poller.NewRedisPoller(rds, pbl, "delayed_queue", poller.NewLoggerAdapter(lgr))
 	go func() {
 		pl.Run(context.Background(), time.NewTicker(100*time.Millisecond))
 	}()

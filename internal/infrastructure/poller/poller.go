@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+type logger interface {
+	WithFields(keyValues ...interface{}) logger
+	Error(err error)
+}
+
 type storage interface {
 	SortedSetRangeByScore(ctx context.Context, key, min, max string, offset, count int64) ([]string, error)
 	Get(ctx context.Context, key string) (string, error)
@@ -23,13 +28,13 @@ type RedisPoller struct {
 	storage        storage
 	publisher      publisher
 	delayedSetName string
-	errCh          chan<- error
+	logger         logger
 }
 
 // NewRedisPoller создает новый RedisPoller.
-func NewRedisPoller(storage storage, publisher publisher, delayedSetName string, errCh chan<- error) *RedisPoller {
+func NewRedisPoller(storage storage, publisher publisher, delayedSetName string, logger logger) *RedisPoller {
 	return &RedisPoller{
-		storage: storage, publisher: publisher, delayedSetName: delayedSetName, errCh: errCh}
+		storage: storage, publisher: publisher, delayedSetName: delayedSetName, logger: logger}
 }
 
 // Run запускает поллер. Поллер запускает функцию-воркер с частотой тикера.
@@ -55,7 +60,7 @@ func (rp *RedisPoller) processReadyTasks(ctx context.Context) {
 	notificationIDs, err := rp.storage.SortedSetRangeByScore(
 		ctx, rp.delayedSetName, "-inf", strconv.FormatInt(now, 10), 0, 10)
 	if err != nil {
-		rp.errCh <- err
+		rp.logger.Error(err)
 	}
 
 	for _, id := range notificationIDs {
@@ -71,14 +76,14 @@ func (rp *RedisPoller) handleNotification(ctx context.Context, notificationID st
 	}
 
 	if err := rp.publisher.Publish(payload); err != nil {
-		rp.errCh <- err
+		rp.logger.Error(err)
 	}
 
 	if err := rp.storage.SortedSetRemove(ctx, rp.delayedSetName, notificationID); err != nil {
-		rp.errCh <- err
+		rp.logger.WithFields("notificationID", notificationID).Error(err)
 	}
 
 	if err := rp.storage.Remove(ctx, "notification:"+notificationID); err != nil {
-		rp.errCh <- err
+		rp.logger.WithFields("notificationID", notificationID).Error(err)
 	}
 }

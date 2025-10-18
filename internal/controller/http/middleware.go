@@ -24,8 +24,16 @@ func (m *Middleware) ErrHandlingMiddleware() ginext.HandlerFunc {
 	return func(c *ginext.Context) {
 		c.Next()
 
-		for _, err := range c.Errors {
-			m.log.Error(err)
+		metadata := []interface{}{}
+
+		if r, ok := c.Get("request"); ok {
+			metadata = append(metadata, []interface{}{"request", r}...)
 		}
+
+		for _, err := range c.Errors {
+			m.log.WithFields(metadata...).Error(err)
+		}
+		
+		c.Errors = nil
 	}
 }

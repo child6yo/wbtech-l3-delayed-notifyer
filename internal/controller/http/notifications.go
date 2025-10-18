@@ -37,6 +37,8 @@ func (nc *NotificationsController) CreateNotification(c *ginext.Context) {
 		return
 	}
 
+	c.Set("request", req)
+
 	delayedNotif := models.DelayedNotification{
 		Notification: models.Notification(req.Notification),
 		Delay:        time.Duration(req.DelaySeconds) * time.Second,
