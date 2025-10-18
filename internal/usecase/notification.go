@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/child6yo/wbtech-l3-delayed-notifyer/pkg/models"
+	"github.com/google/uuid"
 )
 
 type storage interface {
@@ -26,17 +27,21 @@ func NewNotificationCreator(storage storage, delayedSetName string) *Notificatio
 }
 
 // ScheduleNotification кладет новое уведомление в отложенную очередь.
-func (nc *NotificationCreator) ScheduleNotification(ctx context.Context, notification models.DelayedNotification) error {
+// Вощврашает айди запланнированного уведомления.
+func (nc *NotificationCreator) ScheduleNotification(ctx context.Context, notification models.DelayedNotification) (string, error) {
+	uid := uuid.NewString()
+	notification.ID = uid
+
 	payload, err := json.Marshal(notification)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	key := "notification:" + notification.ID
 
 	err = nc.storage.Add(ctx, key, payload)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	sendAtTimestamp := time.Now().Add(notification.Delay).UnixMilli()
@@ -46,8 +51,8 @@ func (nc *NotificationCreator) ScheduleNotification(ctx context.Context, notific
 		// на данный момент обеспечивает атомарность операции
 		// т.е. удаляет payload по ключу в случае ошибки при добавлении в sorted set
 		_ = nc.storage.Remove(ctx, key)
-		return err
+		return "", err
 	}
 
-	return nil
+	return uid, nil
 }

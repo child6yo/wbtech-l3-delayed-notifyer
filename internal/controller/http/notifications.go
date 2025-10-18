@@ -10,7 +10,7 @@ import (
 )
 
 type notificationUsecase interface {
-	ScheduleNotification(ctx context.Context, notification models.DelayedNotification) error
+	ScheduleNotification(ctx context.Context, notification models.DelayedNotification) (string, error)
 }
 
 type NotificationsController struct {
@@ -22,7 +22,6 @@ func NewNotificationsController(uc notificationUsecase) *NotificationsController
 }
 
 type createNotificationRequest struct {
-	ID           string          `json:"id" binding:"required,alphanum,min=1,max=64"`
 	Notification string          `json:"notification" binding:"required,min=1,max=1000"`
 	DelaySeconds int64           `json:"delay_seconds" binding:"required,min=1,max=2592000"` // 1 сек – 30 дней
 	Channels     models.Channels `json:"channels" binding:"required"`
@@ -39,17 +38,18 @@ func (nc *NotificationsController) CreateNotification(c *ginext.Context) {
 	}
 
 	delayedNotif := models.DelayedNotification{
-		ID:           req.ID,
 		Notification: models.Notification(req.Notification),
 		Delay:        time.Duration(req.DelaySeconds) * time.Second,
 		Channels:     req.Channels,
 	}
 
-	if err := nc.usecase.ScheduleNotification(c.Request.Context(), delayedNotif); err != nil {
+	uid, err := nc.usecase.ScheduleNotification(c.Request.Context(), delayedNotif)
+	if err != nil {
 		c.JSON(500, ginext.H{"error": "failed to schedule notification"})
 		c.Error(fmt.Errorf("scheduling failed: %w", err))
 		return
 	}
 
-	c.JSON(201, ginext.H{"message": "notification scheduled"})
+	m := fmt.Sprintf("notification scheduled with id=%s", uid)
+	c.JSON(201, ginext.H{"message": m})
 }
