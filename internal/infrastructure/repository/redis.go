@@ -11,8 +11,8 @@ type Redis struct {
 	client redis.Client
 }
 
-func NewRedis(client redis.Client) *Redis {
-	return &Redis{client: client}
+func NewRedis(addr string, password string, db int) *Redis {
+	return &Redis{client: *redis.New("localhost:6380", "", 0)}
 }
 
 func (r *Redis) Add(ctx context.Context, key string, value interface{}) error {
