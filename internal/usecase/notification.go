@@ -10,6 +10,7 @@ import (
 
 type storage interface {
 	Add(ctx context.Context, key string, value interface{}) error
+	Remove(ctx context.Context, key string) error
 	SortedSetAdd(ctx context.Context, set string, value interface{}, score float64) error
 }
 
@@ -31,7 +32,9 @@ func (nc *NotificationCreator) ScheduleNotification(ctx context.Context, notific
 		return err
 	}
 
-	err = nc.storage.Add(ctx, "notification:"+notification.ID, payload)
+	key := "notification:" + notification.ID
+
+	err = nc.storage.Add(ctx, key, payload)
 	if err != nil {
 		return err
 	}
@@ -39,6 +42,12 @@ func (nc *NotificationCreator) ScheduleNotification(ctx context.Context, notific
 	sendAtTimestamp := time.Now().Add(notification.Delay).UnixMilli()
 	err = nc.storage.SortedSetAdd(
 		ctx, nc.delayedSetName, notification.ID, float64(sendAtTimestamp))
+	if err != nil {
+		// на данный момент обеспечивает атомарность операции
+		// т.е. удаляет payload по ключу в случае ошибки при добавлении в sorted set
+		_ = nc.storage.Remove(ctx, key)
+		return err
+	}
 
-	return err
+	return nil
 }
