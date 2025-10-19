@@ -42,6 +42,8 @@ type appConfig struct {
 
 	pollerTick int
 
+	consumerNumWorkers int
+
 	emailFrom string
 	emailHost string
 	emailPort string
@@ -71,6 +73,8 @@ func initConfig(configFilePath, envFilePath, envPrefix string) (*appConfig, erro
 
 	appConfig.pollerTick = cfg.GetInt("poller_tick_milliseconds")
 
+	appConfig.consumerNumWorkers = cfg.GetInt("consumer_num_workers")
+
 	appConfig.emailFrom = cfg.GetString("smtp_from")
 	appConfig.emailHost = cfg.GetString("smtp_host")
 	appConfig.emailPort = cfg.GetString("smtp_port")
@@ -81,8 +85,8 @@ func initConfig(configFilePath, envFilePath, envPrefix string) (*appConfig, erro
 }
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
 	zlog.InitConsole()
 	lgr := zlog.Logger
@@ -98,7 +102,7 @@ func main() {
 		lgr.Fatal().Err(err).Send()
 	}
 
-	msgChan := make(chan []byte, 10)
+	msgChan := make(chan []byte, cfg.consumerNumWorkers)
 
 	var wg sync.WaitGroup
 
@@ -135,7 +139,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		cnsHandler.Consume(ctx, 10)
+		cnsHandler.Consume(ctx, cfg.consumerNumWorkers)
 	}()
 
 	nuc := usecase.NewNotificationCreator(rds, cfg.redisDelayedQueueName)

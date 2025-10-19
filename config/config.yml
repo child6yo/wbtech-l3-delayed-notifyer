@@ -13,3 +13,5 @@ smtp_host: "dq-mailhog"
 smtp_port: "1025"
 
 poller_tick_milliseconds: 100
+
+consumer_num_workers: 30
