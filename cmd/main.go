@@ -93,7 +93,7 @@ func main() {
 
 	rds := repository.NewRedis(cfg.redisAddr, cfg.redisPassword, cfg.redisDB)
 	pbl := messaging.NewRabbitMQBroker(cfg.rabbitMQAddr, cfg.rabbitMQQueue)
-	if err := pbl.ConnectWithRetry(3, 1*time.Second); err != nil {
+	if err := pbl.ConnectWithRetry(10, 5*time.Second); err != nil {
 		lgr.Fatal().Err(err).Send()
 	}
 

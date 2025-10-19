@@ -1,0 +1,50 @@
+services:
+  app:
+    container_name: delayed-notifyer
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - TG_BOT_TOKEN
+    depends_on:
+      - redis
+      - rabbitmq
+      - mailhog
+    networks:
+      - dev-network
+
+  redis:
+    container_name: dq-redis
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    command: redis-server --save "" --appendonly no
+    networks:
+      - dev-network
+
+  rabbitmq:
+    container_name: dq-rabbitmq
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"     
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    networks:
+      - dev-network
+
+  mailhog:
+    container_name: dq-mailhog
+    image: mailhog/mailhog
+    ports:
+      - "1025:1025"  
+      - "8025:8025" 
+    networks:
+      - dev-network
+
+networks:
+  dev-network:
+    driver: bridge

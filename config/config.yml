@@ -1,15 +1,15 @@
-app_address: "localhost:8080"
+app_address: ":8080"
 
-redis_address: "localhost:6380"
+redis_address: "dq-redis:6379"
 redis_password: ""
 redis_db: 0
 redis_delayed_queue: "delayed_queue"
 
-rabbitmq_address: "amqp://localhost:5672"
+rabbitmq_address: "amqp://dq-rabbitmq:5672"
 rabbitmq_queue: "notification.created"
 
 smtp_from: "test@local.host"
-smtp_host: "localhost"
+smtp_host: "dq-mailhog"
 smtp_port: "1025"
 
 poller_tick_milliseconds: 100

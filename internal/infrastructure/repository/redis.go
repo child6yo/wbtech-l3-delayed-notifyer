@@ -12,7 +12,7 @@ type Redis struct {
 }
 
 func NewRedis(addr string, password string, db int) *Redis {
-	return &Redis{client: *redis.New("localhost:6380", "", 0)}
+	return &Redis{client: *redis.New(addr, password, db)}
 }
 
 func (r *Redis) Add(ctx context.Context, key string, value interface{}) error {
