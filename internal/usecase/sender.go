@@ -110,5 +110,5 @@ func (ns *NotificationSender) determineStatus(errs []error) models.NotificationS
 
 // saveStatus сохраняет статус уведомления в хранилище.
 func (ns *NotificationSender) saveStatus(ctx context.Context, notificationID string, status models.NotificationStatus) error {
-	return ns.storageAdder.Add(ctx, "notification.status:"+notificationID, status)
+	return ns.storageAdder.Add(ctx, "notification.status:"+notificationID, string(status))
 }
