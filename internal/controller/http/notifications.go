@@ -11,12 +11,15 @@ import (
 
 type notificationUsecase interface {
 	ScheduleNotification(ctx context.Context, notification models.DelayedNotification) (string, error)
+	GetNotification(ctx context.Context, uid string) (models.NotificationStatus, error)
 }
 
+// NotificationsController http контроллер сервиса отложенных уведомлений.
 type NotificationsController struct {
 	usecase notificationUsecase
 }
 
+// NewNotificationsController создает новый NotificationsController.
 func NewNotificationsController(uc notificationUsecase) *NotificationsController {
 	return &NotificationsController{usecase: uc}
 }
@@ -52,6 +55,23 @@ func (nc *NotificationsController) CreateNotification(c *ginext.Context) {
 		return
 	}
 
-	m := fmt.Sprintf("notification scheduled with id=%s", uid)
-	c.JSON(201, ginext.H{"message": m})
+	c.JSON(201, ginext.H{"uid": uid})
+}
+
+// GetNotification обрабатывает GET /notify/{id} — получение статуса уведомления.
+func (nc *NotificationsController) GetNotificationStatus(c *ginext.Context) {
+	uid := c.Param("id")
+	status, err := nc.usecase.GetNotification(c.Request.Context(), uid)
+	if err != nil {
+		c.JSON(500, ginext.H{"error": "failed to get notification"})
+		c.Error(fmt.Errorf("get notification failed: %w", err))
+		return
+	}
+
+	c.JSON(200, ginext.H{"status": status})
+}
+
+// DeleteNotification обрабатывает DELETE /notify/{id} — отмена запланированного уведомления.
+func (nc *NotificationsController) DeleteNotification(c *ginext.Context) {
+
 }

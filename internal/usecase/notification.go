@@ -11,6 +11,7 @@ import (
 
 type storage interface {
 	Add(ctx context.Context, key string, value interface{}) error
+	Get(ctx context.Context, key string) (string, error)
 	Remove(ctx context.Context, key string) error
 	SortedSetAdd(ctx context.Context, set string, value interface{}, score float64) error
 }
@@ -37,9 +38,12 @@ func (nc *NotificationCreator) ScheduleNotification(ctx context.Context, notific
 		return "", err
 	}
 
-	key := "notification:" + notification.ID
+	err = nc.storage.Add(ctx, "notification:"+notification.ID, payload)
+	if err != nil {
+		return "", err
+	}
 
-	err = nc.storage.Add(ctx, key, payload)
+	err = nc.storage.Add(ctx, "notification.status:"+notification.ID, string(models.StatusScheduled))
 	if err != nil {
 		return "", err
 	}
@@ -50,9 +54,20 @@ func (nc *NotificationCreator) ScheduleNotification(ctx context.Context, notific
 	if err != nil {
 		// на данный момент обеспечивает атомарность операции
 		// т.е. удаляет payload по ключу в случае ошибки при добавлении в sorted set
-		_ = nc.storage.Remove(ctx, key)
+		_ = nc.storage.Remove(ctx, "notification:"+notification.ID)
+		_ = nc.storage.Remove(ctx, "notification.status:"+notification.ID)
 		return "", err
 	}
 
 	return uid, nil
+}
+
+// GetNotification возвращает уведомление по его айди.
+func (nc *NotificationCreator) GetNotification(ctx context.Context, uid string) (models.NotificationStatus, error) {
+	notification, err := nc.storage.Get(ctx, "notification.status:"+uid)
+	if err != nil {
+		return "", err
+	}
+
+	return models.NotificationStatus(notification), err
 }

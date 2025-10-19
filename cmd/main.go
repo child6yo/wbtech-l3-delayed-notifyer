@@ -14,6 +14,11 @@ import (
 	"github.com/wb-go/wbf/zlog"
 )
 
+const (
+	createNotificationRoute    = "/notify"
+	getNotificationStatusRoute = "/notify/:id"
+)
+
 func main() {
 	zlog.InitConsole()
 	lgr := zlog.Logger
@@ -36,6 +41,7 @@ func main() {
 
 	srv := ginext.New("")
 	srv.Use(ginext.Logger(), ginext.Recovery(), mdlw.ErrHandlingMiddleware())
-	srv.POST("/notify", nc.CreateNotification)
+	srv.POST(createNotificationRoute, nc.CreateNotification)
+	srv.GET(getNotificationStatusRoute, nc.GetNotificationStatus)
 	srv.Run("localhost:8080")
 }

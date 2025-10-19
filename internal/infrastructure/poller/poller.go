@@ -2,8 +2,11 @@ package poller
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
+
+	"github.com/child6yo/wbtech-l3-delayed-notifyer/pkg/models"
 )
 
 type logger interface {
@@ -13,6 +16,7 @@ type logger interface {
 
 type storage interface {
 	SortedSetRangeByScore(ctx context.Context, key, min, max string, offset, count int64) ([]string, error)
+	Add(ctx context.Context, key string, value interface{}) error
 	Get(ctx context.Context, key string) (string, error)
 	Remove(ctx context.Context, key string) error
 	SortedSetRemove(ctx context.Context, set string, value interface{}) error
@@ -76,7 +80,9 @@ func (rp *RedisPoller) handleNotification(ctx context.Context, notificationID st
 	}
 
 	if err := rp.publisher.Publish(payload); err != nil {
-		rp.logger.Error(err)
+		_ = rp.storage.Add(ctx, "notification.status:"+notificationID, string(models.StatusFailed))
+		rp.logger.WithFields("notificationID", notificationID).Error(fmt.Errorf("publishing: %v", err))
+		return
 	}
 
 	if err := rp.storage.SortedSetRemove(ctx, rp.delayedSetName, notificationID); err != nil {
@@ -84,6 +90,10 @@ func (rp *RedisPoller) handleNotification(ctx context.Context, notificationID st
 	}
 
 	if err := rp.storage.Remove(ctx, "notification:"+notificationID); err != nil {
+		rp.logger.WithFields("notificationID", notificationID).Error(err)
+	}
+
+	if err := rp.storage.Add(ctx, "notification.status:"+notificationID, string(models.StatusSending)); err != nil {
 		rp.logger.WithFields("notificationID", notificationID).Error(err)
 	}
 }
