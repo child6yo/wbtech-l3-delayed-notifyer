@@ -8,9 +8,10 @@ import (
 	"github.com/wb-go/wbf/rabbitmq"
 )
 
+// RabbitMQBroker определяет структуру соединения с RabbitMQ.
 type RabbitMQBroker struct {
-	url   string
-	queue string
+	url   string // аддресс
+	queue string // очередь
 
 	ch *amqp091.Channel
 
@@ -18,10 +19,12 @@ type RabbitMQBroker struct {
 	consumer  *rabbitmq.Consumer
 }
 
+// NewRabbitMQBroker создает новый RabbitMQBroker.
 func NewRabbitMQBroker(url, queue string) *RabbitMQBroker {
 	return &RabbitMQBroker{url: url, queue: queue}
 }
 
+// ConnectWithRetry n-е кол-во раз пытается подключиться к RabbitMQ.
 func (b *RabbitMQBroker) ConnectWithRetry(retries int, pause time.Duration) error {
 	conn, err := rabbitmq.Connect(b.url, retries, pause)
 	if err != nil {
@@ -47,6 +50,7 @@ func (b *RabbitMQBroker) ConnectWithRetry(retries int, pause time.Duration) erro
 	return nil
 }
 
+// Publish публикует значение в очередь.
 func (b *RabbitMQBroker) Publish(value string) error {
 	if b.publisher == nil {
 		return errors.New("not connected: publisher is nil")
@@ -54,6 +58,8 @@ func (b *RabbitMQBroker) Publish(value string) error {
 	return b.publisher.Publish([]byte(value), b.queue, "json")
 }
 
+// Consume запускает консьюмер, прокидывающий сообщения из очереди в msgChan.
+// Ack происходит автоматически внутри consumer.
 func (b *RabbitMQBroker) Consume(msgChan chan []byte) error {
 	if b.consumer == nil {
 		return errors.New("not connected: consumer is nil")
@@ -62,6 +68,7 @@ func (b *RabbitMQBroker) Consume(msgChan chan []byte) error {
 	return b.consumer.Consume(msgChan)
 }
 
+// Close закрывает соединение amqp канала.
 func (b *RabbitMQBroker) Close() error {
 	return b.ch.Close()
 }

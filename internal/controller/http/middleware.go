@@ -1,22 +1,18 @@
 package httpctrl
 
 import (
+	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/infrastructure/logger"
 	"github.com/wb-go/wbf/ginext"
 )
 
-type logger interface {
-	WithFields(keyValues ...interface{}) logger
-	Error(err error)
-}
-
 // Middleware является прослойкой перед вызываемыми обработчиками.
 type Middleware struct {
-	log logger
+	logger logger.Logger
 }
 
 // NewMiddleware создает новый Middleware.
-func NewMiddleware(log logger) *Middleware {
-	return &Middleware{log: log}
+func NewMiddleware(logger logger.Logger) *Middleware {
+	return &Middleware{logger: logger}
 }
 
 // ErrHandlingMiddleware логирует ошибки, добавленные через c.Error().
@@ -31,9 +27,9 @@ func (m *Middleware) ErrHandlingMiddleware() ginext.HandlerFunc {
 		}
 
 		for _, err := range c.Errors {
-			m.log.WithFields(metadata...).Error(err)
+			m.logger.WithFields(metadata...).Error(err)
 		}
-		
+
 		c.Errors = nil
 	}
 }

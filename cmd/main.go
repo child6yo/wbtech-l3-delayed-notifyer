@@ -12,6 +12,7 @@ import (
 
 	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/controller/consumer"
 	httpctrl "github.com/child6yo/wbtech-l3-delayed-notifyer/internal/controller/http"
+	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/infrastructure/logger"
 	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/infrastructure/messaging"
 	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/infrastructure/poller"
 	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/infrastructure/repository"
@@ -110,16 +111,16 @@ func main() {
 		}
 	}()
 
-	pl := poller.NewRedisPoller(rds, pbl, cfg.redisDelayedQueueName, poller.NewLoggerAdapter(lgr))
+	pl := poller.NewRedisPoller(rds, pbl, cfg.redisDelayedQueueName, logger.NewLoggerAdapter(lgr))
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		pl.Run(ctx, time.NewTicker(time.Duration(cfg.pollerTick)*time.Millisecond))
 	}()
 
-	emailSender := sender.NewEmailSender(cfg.emailFrom, cfg.emailHost, cfg.emailPort)
+	emailSender := sender.NewEmail(cfg.emailFrom, cfg.emailHost, cfg.emailPort)
 
-	tgSender, err := sender.NewTelegramSender(cfg.tgBotToken)
+	tgSender, err := sender.NewTelegram(cfg.tgBotToken)
 	if err != nil {
 		lgr.Fatal().Err(err).Send()
 	}
@@ -130,16 +131,16 @@ func main() {
 	}()
 
 	ns := usecase.NewNotificationSender(emailSender, tgSender, rds)
-	cnsHandler := consumer.NewNotificationConsumer(msgChan, consumer.NewLoggerAdapter(lgr), ns)
+	cnsHandler := consumer.NewNotificationConsumer(msgChan, logger.NewLoggerAdapter(lgr), ns)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		cnsHandler.Consume(ctx)
+		cnsHandler.Consume(ctx, 10)
 	}()
 
 	nuc := usecase.NewNotificationCreator(rds, cfg.redisDelayedQueueName)
 	nc := httpctrl.NewNotificationsController(nuc)
-	mdlw := httpctrl.NewMiddleware(httpctrl.NewLoggerAdapter(lgr))
+	mdlw := httpctrl.NewMiddleware(logger.NewLoggerAdapter(lgr))
 
 	srv := ginext.New("")
 	srv.Use(ginext.Logger(), ginext.Recovery(), mdlw.ErrHandlingMiddleware())

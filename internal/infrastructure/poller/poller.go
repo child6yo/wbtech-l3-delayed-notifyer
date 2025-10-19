@@ -6,13 +6,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/infrastructure/logger"
 	"github.com/child6yo/wbtech-l3-delayed-notifyer/pkg/models"
 )
-
-type logger interface {
-	WithFields(keyValues ...interface{}) logger
-	Error(err error)
-}
 
 type storage interface {
 	SortedSetRangeByScore(ctx context.Context, key, min, max string, offset, count int64) ([]string, error)
@@ -32,11 +28,11 @@ type RedisPoller struct {
 	storage        storage
 	publisher      publisher
 	delayedSetName string
-	logger         logger
+	logger         logger.Logger
 }
 
 // NewRedisPoller создает новый RedisPoller.
-func NewRedisPoller(storage storage, publisher publisher, delayedSetName string, logger logger) *RedisPoller {
+func NewRedisPoller(storage storage, publisher publisher, delayedSetName string, logger logger.Logger) *RedisPoller {
 	return &RedisPoller{
 		storage: storage, publisher: publisher, delayedSetName: delayedSetName, logger: logger}
 }

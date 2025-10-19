@@ -37,7 +37,7 @@ func (nc *NotificationsController) CreateNotification(c *ginext.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, ginext.H{"error": "invalid request: " + err.Error()})
-		c.Error(fmt.Errorf("validation error: %w", err))
+		_ = c.Error(fmt.Errorf("validation error: %w", err))
 		return
 	}
 
@@ -52,14 +52,14 @@ func (nc *NotificationsController) CreateNotification(c *ginext.Context) {
 	uid, err := nc.usecase.ScheduleNotification(c.Request.Context(), delayedNotif)
 	if err != nil {
 		c.JSON(500, ginext.H{"error": "failed to schedule notification"})
-		c.Error(fmt.Errorf("scheduling failed: %w", err))
+		_ = c.Error(fmt.Errorf("scheduling failed: %w", err))
 		return
 	}
 
 	c.JSON(201, ginext.H{"uid": uid})
 }
 
-// GetNotification обрабатывает GET /notify/{id} — получение статуса уведомления.
+// GetNotificationStatus обрабатывает GET /notify/{id} — получение статуса уведомления.
 func (nc *NotificationsController) GetNotificationStatus(c *ginext.Context) {
 	uid := c.Param("id")
 	c.Set("request", uid)
@@ -67,7 +67,7 @@ func (nc *NotificationsController) GetNotificationStatus(c *ginext.Context) {
 	status, err := nc.usecase.GetNotificationStatus(c.Request.Context(), uid)
 	if err != nil {
 		c.JSON(500, ginext.H{"error": "failed to get notification"})
-		c.Error(fmt.Errorf("get notification failed: %w", err))
+		_ = c.Error(fmt.Errorf("get notification failed: %w", err))
 		return
 	}
 
@@ -82,7 +82,7 @@ func (nc *NotificationsController) DeleteNotification(c *ginext.Context) {
 	err := nc.usecase.RemoveNotification(c.Request.Context(), uid)
 	if err != nil {
 		c.JSON(500, ginext.H{"error": "failed to delete notification: " + err.Error()})
-		c.Error(fmt.Errorf("delete notification failed: %w", err))
+		_ = c.Error(fmt.Errorf("delete notification failed: %w", err))
 		return
 	}
 

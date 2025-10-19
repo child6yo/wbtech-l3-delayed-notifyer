@@ -5,16 +5,16 @@ import (
 	"net/smtp"
 )
 
-// EmailSender определяет отправщик электронных писем через SMTP сервер.
-type EmailSender struct {
+// Email определяет отправщик электронных писем через SMTP сервер.
+type Email struct {
 	from string
 	host string
 	port string
 }
 
-// NewEmailSenderсоздает новый EmailSender.
-func NewEmailSender(from, host, port string) *EmailSender {
-	return &EmailSender{
+// NewEmail создает новый Email.
+func NewEmail(from, host, port string) *Email {
+	return &Email{
 		from: from,
 		host: host,
 		port: port,
@@ -22,15 +22,15 @@ func NewEmailSender(from, host, port string) *EmailSender {
 }
 
 // Send отправляет сообщение на указанный адрес.
-func (es *EmailSender) Send(emailAddr string, data string) error {
+func (e *Email) Send(emailAddr string, data string) error {
 	to := []string{emailAddr}
 	msg := fmt.Sprintf("From: %s\r\n"+
 		"To: %s\r\n"+
 		"Subject: Уведомление\r\n"+
 		"\r\n"+
 		"%s\r\n",
-		es.from, to, data)
+		e.from, to, data)
 
-	addr := es.host + ":" + es.port
-	return smtp.SendMail(addr, nil, es.from, to, []byte(msg))
+	addr := e.host + ":" + e.port
+	return smtp.SendMail(addr, nil, e.from, to, []byte(msg))
 }

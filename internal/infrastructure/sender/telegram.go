@@ -8,40 +8,43 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
-// TelegramSender определяет отправщик сообщений через телеграм-канал.
-type TelegramSender struct {
+// Telegram определяет отправщик сообщений через телеграм-канал.
+type Telegram struct {
 	Bot *bot.Bot
 }
 
-// NewTelegramSender создает новый TelegramSender.
-func NewTelegramSender(token string) (*TelegramSender, error) {
+// NewTelegram создает новый Telegram.
+func NewTelegram(token string) (*Telegram, error) {
 	b, err := bot.New(token)
 
-	return &TelegramSender{Bot: b}, err
+	return &Telegram{Bot: b}, err
 }
 
 // Start запускает работу телеграм отправщика.
-func (tb *TelegramSender) Start(ctx context.Context) {
-	tb.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, func(ctx context.Context, b *bot.Bot, update *models.Update) {
+func (t *Telegram) Start(ctx context.Context) {
+	t.Bot.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		chatID := update.Message.Chat.ID
-		b.SendMessage(ctx, &bot.SendMessageParams{
+		_, err := b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: chatID,
 			Text: fmt.Sprintf(`Ваш чат айди - %d. 
 			Используйте его, если хотите получать уведомления через телеграм-канал.`, chatID),
 		})
+		if err != nil {
+			return
+		}
 	})
 
-	tb.Bot.Start(ctx)
+	t.Bot.Start(ctx)
 }
 
 // Send отправляет сообщение на указанный chatID.
-func (ts *TelegramSender) Send(chatID string, data string) error {
-	_, err := ts.Bot.SendMessage(context.Background(), &bot.SendMessageParams{ChatID: chatID, Text: data})
+func (t *Telegram) Send(chatID string, data string) error {
+	_, err := t.Bot.SendMessage(context.Background(), &bot.SendMessageParams{ChatID: chatID, Text: data})
 	return err
 }
 
 // Stop делает попытку закрыть соединение.
-func (tb *TelegramSender) Stop(ctx context.Context) error {
-	_, err := tb.Bot.Close(ctx)
+func (t *Telegram) Stop(ctx context.Context) error {
+	_, err := t.Bot.Close(ctx)
 	return err
 }
