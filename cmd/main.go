@@ -2,14 +2,17 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"time"
 
+	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/controller/consumer"
 	httpctrl "github.com/child6yo/wbtech-l3-delayed-notifyer/internal/controller/http"
+	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/infrastructure/messaging"
 	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/infrastructure/poller"
-	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/infrastructure/publisher"
 	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/infrastructure/repository"
+	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/infrastructure/sender"
 	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/usecase"
+	"github.com/wb-go/wbf/config"
 	"github.com/wb-go/wbf/ginext"
 	"github.com/wb-go/wbf/zlog"
 )
@@ -20,23 +23,103 @@ const (
 	deleteNotificationRoute    = "/notify/:id"
 )
 
+type appConfig struct {
+	address string
+
+	redisAddr             string
+	redisPassword         string
+	redisDB               int
+	redisDelayedQueueName string
+
+	rabbitMQAddr  string
+	rabbitMQQueue string
+
+	pollerTick int
+
+	emailFrom string
+	emailHost string
+	emailPort string
+
+	tgBotToken string
+}
+
+func initConfig(configFilePath, envFilePath, envPrefix string) (*appConfig, error) {
+	appConfig := &appConfig{}
+
+	cfg := config.New()
+
+	err := cfg.Load(configFilePath, envFilePath, envPrefix)
+	if err != nil {
+		return appConfig, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	appConfig.address = cfg.GetString("app_address")
+
+	appConfig.redisAddr = cfg.GetString("redis_address")
+	appConfig.redisPassword = cfg.GetString("redis_password")
+	appConfig.redisDB = cfg.GetInt("redis_db")
+	appConfig.redisDelayedQueueName = cfg.GetString("redis_delayed_queue")
+
+	appConfig.rabbitMQAddr = cfg.GetString("rabbitmq_address")
+	appConfig.rabbitMQQueue = cfg.GetString("rabbitmq_queue")
+
+	appConfig.pollerTick = cfg.GetInt("poller_tick_milliseconds")
+
+	appConfig.emailFrom = cfg.GetString("smtp_from")
+	appConfig.emailHost = cfg.GetString("smtp_host")
+	appConfig.emailPort = cfg.GetString("smtp_port")
+
+	appConfig.tgBotToken = cfg.GetString("TG_BOT_TOKEN")
+
+	return appConfig, nil
+}
+
 func main() {
+	ctx := context.Background()
+
 	zlog.InitConsole()
 	lgr := zlog.Logger
 
-	rds := repository.NewRedis("localhost:6380", "", 0)
-	pbl := publisher.NewRabbitMQPublisher("amqp://localhost:5672", "notification.created")
-	err := pbl.ConnectWithRetry(3, 1*time.Second)
+	cfg, err := initConfig("config/config.yml", ".env", "")
 	if err != nil {
-		log.Println(err)
+		lgr.Err(err).Send()
 	}
 
-	pl := poller.NewRedisPoller(rds, pbl, "delayed_queue", poller.NewLoggerAdapter(lgr))
+	rds := repository.NewRedis(cfg.redisAddr, cfg.redisPassword, cfg.redisDB)
+	pbl := messaging.NewRabbitMQBroker(cfg.rabbitMQAddr, cfg.rabbitMQQueue)
+	err = pbl.ConnectWithRetry(3, 1*time.Second)
+	if err != nil {
+		lgr.Err(err).Send()
+	}
+	msgChan := make(chan []byte, 10)
 	go func() {
-		pl.Run(context.Background(), time.NewTicker(100*time.Millisecond))
+		err = pbl.Consume(msgChan)
+		if err != nil {
+			lgr.Err(err).Send()
+		}
 	}()
 
-	nuc := usecase.NewNotificationCreator(rds, "delayed_queue")
+	pl := poller.NewRedisPoller(rds, pbl, cfg.redisDelayedQueueName, poller.NewLoggerAdapter(lgr))
+	go func() {
+		pl.Run(ctx, time.NewTicker(time.Duration(cfg.pollerTick)*time.Millisecond))
+	}()
+
+	emailSender := sender.NewEmailSender(cfg.emailFrom, cfg.emailHost, cfg.emailPort)
+	tgSender, err := sender.NewTelegramSender(cfg.tgBotToken)
+	if err != nil {
+		lgr.Err(err).Send()
+	}
+	go func() {
+		tgSender.Start(ctx)
+	}()
+
+	ns := usecase.NewNotificationSender(emailSender, tgSender, rds)
+	cnsNotificationHandler := consumer.NewNotificationConsumer(msgChan, consumer.NewLoggerAdapter(lgr), ns)
+	go func() {
+		cnsNotificationHandler.Consume(ctx)
+	}()
+
+	nuc := usecase.NewNotificationCreator(rds, cfg.redisDelayedQueueName)
 	nc := httpctrl.NewNotificationsController(nuc)
 	mdlw := httpctrl.NewMiddleware(httpctrl.NewLoggerAdapter(lgr))
 
@@ -45,5 +128,5 @@ func main() {
 	srv.POST(createNotificationRoute, nc.CreateNotification)
 	srv.GET(getNotificationStatusRoute, nc.GetNotificationStatus)
 	srv.DELETE(deleteNotificationRoute, nc.DeleteNotification)
-	srv.Run("localhost:8080")
+	srv.Run(cfg.address)
 }
