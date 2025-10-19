@@ -39,12 +39,12 @@ func (nc *NotificationCreator) ScheduleNotification(ctx context.Context, notific
 		return "", err
 	}
 
-	err = nc.storage.Add(ctx, "notification:"+notification.ID, payload, notification.Delay + 24*time.Hour)
+	err = nc.storage.Add(ctx, "notification:"+notification.ID, payload, notification.Delay+24*time.Hour)
 	if err != nil {
 		return "", err
 	}
 
-	err = nc.storage.Add(ctx, "notification.status:"+notification.ID, string(models.StatusScheduled), notification.Delay + 168*time.Hour)
+	err = nc.storage.Add(ctx, "notification.status:"+notification.ID, string(models.StatusScheduled), notification.Delay+168*time.Hour)
 	if err != nil {
 		return "", err
 	}
