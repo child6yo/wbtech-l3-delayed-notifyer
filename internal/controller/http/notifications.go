@@ -11,7 +11,8 @@ import (
 
 type notificationUsecase interface {
 	ScheduleNotification(ctx context.Context, notification models.DelayedNotification) (string, error)
-	GetNotification(ctx context.Context, uid string) (models.NotificationStatus, error)
+	GetNotificationStatus(ctx context.Context, uid string) (models.NotificationStatus, error)
+	RemoveNotification(ctx context.Context, uid string) error
 }
 
 // NotificationsController http контроллер сервиса отложенных уведомлений.
@@ -61,7 +62,9 @@ func (nc *NotificationsController) CreateNotification(c *ginext.Context) {
 // GetNotification обрабатывает GET /notify/{id} — получение статуса уведомления.
 func (nc *NotificationsController) GetNotificationStatus(c *ginext.Context) {
 	uid := c.Param("id")
-	status, err := nc.usecase.GetNotification(c.Request.Context(), uid)
+	c.Set("request", uid)
+
+	status, err := nc.usecase.GetNotificationStatus(c.Request.Context(), uid)
 	if err != nil {
 		c.JSON(500, ginext.H{"error": "failed to get notification"})
 		c.Error(fmt.Errorf("get notification failed: %w", err))
@@ -73,5 +76,15 @@ func (nc *NotificationsController) GetNotificationStatus(c *ginext.Context) {
 
 // DeleteNotification обрабатывает DELETE /notify/{id} — отмена запланированного уведомления.
 func (nc *NotificationsController) DeleteNotification(c *ginext.Context) {
+	uid := c.Param("id")
+	c.Set("request", uid)
 
+	err := nc.usecase.RemoveNotification(c.Request.Context(), uid)
+	if err != nil {
+		c.JSON(500, ginext.H{"error": "failed to delete notification: " + err.Error()})
+		c.Error(fmt.Errorf("delete notification failed: %w", err))
+		return
+	}
+
+	c.JSON(200, ginext.H{"message": "notification deleted"})
 }

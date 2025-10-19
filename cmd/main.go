@@ -17,6 +17,7 @@ import (
 const (
 	createNotificationRoute    = "/notify"
 	getNotificationStatusRoute = "/notify/:id"
+	deleteNotificationRoute    = "/notify/:id"
 )
 
 func main() {
@@ -43,5 +44,6 @@ func main() {
 	srv.Use(ginext.Logger(), ginext.Recovery(), mdlw.ErrHandlingMiddleware())
 	srv.POST(createNotificationRoute, nc.CreateNotification)
 	srv.GET(getNotificationStatusRoute, nc.GetNotificationStatus)
+	srv.DELETE(deleteNotificationRoute, nc.DeleteNotification)
 	srv.Run("localhost:8080")
 }
