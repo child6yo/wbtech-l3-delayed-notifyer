@@ -36,8 +36,11 @@ func (c *NotificationConsumer) Consume(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-			msg := <-c.msgChan
+		case msg, ok := <-c.msgChan:
+			if len(msg) == 0 || !ok {
+				continue
+			}
+
 			c.logger.WithFields("msg", string(msg)).Debug("new msg consumed")
 
 			var notification models.DelayedNotification

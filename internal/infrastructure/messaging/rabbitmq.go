@@ -4,12 +4,15 @@ import (
 	"errors"
 	"time"
 
+	"github.com/rabbitmq/amqp091-go"
 	"github.com/wb-go/wbf/rabbitmq"
 )
 
 type RabbitMQBroker struct {
 	url   string
 	queue string
+
+	ch *amqp091.Channel
 
 	publisher *rabbitmq.Publisher
 	consumer  *rabbitmq.Consumer
@@ -29,6 +32,8 @@ func (b *RabbitMQBroker) ConnectWithRetry(retries int, pause time.Duration) erro
 	if err != nil {
 		return err
 	}
+
+	b.ch = ch
 
 	qm := rabbitmq.NewQueueManager(ch)
 	_, err = qm.DeclareQueue(b.queue)
@@ -55,4 +60,8 @@ func (b *RabbitMQBroker) Consume(msgChan chan []byte) error {
 	}
 
 	return b.consumer.Consume(msgChan)
+}
+
+func (b *RabbitMQBroker) Close() error {
+	return b.ch.Close()
 }

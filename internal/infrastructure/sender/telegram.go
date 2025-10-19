@@ -39,3 +39,9 @@ func (ts *TelegramSender) Send(chatID string, data string) error {
 	_, err := ts.Bot.SendMessage(context.Background(), &bot.SendMessageParams{ChatID: chatID, Text: data})
 	return err
 }
+
+// Stop делает попытку закрыть соединение.
+func (tb *TelegramSender) Stop(ctx context.Context) error {
+	_, err := tb.Bot.Close(ctx)
+	return err
+}

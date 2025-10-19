@@ -3,6 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/child6yo/wbtech-l3-delayed-notifyer/internal/controller/consumer"
@@ -75,48 +80,61 @@ func initConfig(configFilePath, envFilePath, envPrefix string) (*appConfig, erro
 }
 
 func main() {
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	zlog.InitConsole()
 	lgr := zlog.Logger
 
 	cfg, err := initConfig("config/config.yml", ".env", "")
 	if err != nil {
-		lgr.Err(err).Send()
+		lgr.Fatal().Err(err).Send()
 	}
 
 	rds := repository.NewRedis(cfg.redisAddr, cfg.redisPassword, cfg.redisDB)
 	pbl := messaging.NewRabbitMQBroker(cfg.rabbitMQAddr, cfg.rabbitMQQueue)
-	err = pbl.ConnectWithRetry(3, 1*time.Second)
-	if err != nil {
-		lgr.Err(err).Send()
+	if err := pbl.ConnectWithRetry(3, 1*time.Second); err != nil {
+		lgr.Fatal().Err(err).Send()
 	}
+
 	msgChan := make(chan []byte, 10)
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
-		err = pbl.Consume(msgChan)
-		if err != nil {
+		defer close(msgChan)
+		defer wg.Done()
+		if err := pbl.Consume(msgChan); err != nil {
 			lgr.Err(err).Send()
 		}
 	}()
 
 	pl := poller.NewRedisPoller(rds, pbl, cfg.redisDelayedQueueName, poller.NewLoggerAdapter(lgr))
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		pl.Run(ctx, time.NewTicker(time.Duration(cfg.pollerTick)*time.Millisecond))
 	}()
 
 	emailSender := sender.NewEmailSender(cfg.emailFrom, cfg.emailHost, cfg.emailPort)
+
 	tgSender, err := sender.NewTelegramSender(cfg.tgBotToken)
 	if err != nil {
-		lgr.Err(err).Send()
+		lgr.Fatal().Err(err).Send()
 	}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		tgSender.Start(ctx)
 	}()
 
 	ns := usecase.NewNotificationSender(emailSender, tgSender, rds)
-	cnsNotificationHandler := consumer.NewNotificationConsumer(msgChan, consumer.NewLoggerAdapter(lgr), ns)
+	cnsHandler := consumer.NewNotificationConsumer(msgChan, consumer.NewLoggerAdapter(lgr), ns)
+	wg.Add(1)
 	go func() {
-		cnsNotificationHandler.Consume(ctx)
+		defer wg.Done()
+		cnsHandler.Consume(ctx)
 	}()
 
 	nuc := usecase.NewNotificationCreator(rds, cfg.redisDelayedQueueName)
@@ -128,5 +146,36 @@ func main() {
 	srv.POST(createNotificationRoute, nc.CreateNotification)
 	srv.GET(getNotificationStatusRoute, nc.GetNotificationStatus)
 	srv.DELETE(deleteNotificationRoute, nc.DeleteNotification)
-	srv.Run(cfg.address)
+
+	httpServer := &http.Server{
+		Addr:    cfg.address,
+		Handler: srv,
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			lgr.Err(err).Send()
+		}
+	}()
+
+	<-ctx.Done()
+	lgr.Info().Msg("shutting down gracefully...")
+
+	if err := pbl.Close(); err != nil {
+		lgr.Err(err).Send()
+	}
+
+	if err := httpServer.Shutdown(context.Background()); err != nil {
+		lgr.Err(err).Send()
+	}
+
+	if err := tgSender.Stop(context.Background()); err != nil {
+		lgr.Err(err).Send()
+	}
+
+	wg.Wait()
+
+	lgr.Info().Msg("app exited")
 }
