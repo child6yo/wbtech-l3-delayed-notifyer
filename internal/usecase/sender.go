@@ -11,7 +11,7 @@ import (
 )
 
 type storageAdder interface {
-	Add(ctx context.Context, key string, value interface{}) error
+	Add(ctx context.Context, key string, value interface{}, exp time.Duration) error
 }
 
 type telegramSender interface {
@@ -110,5 +110,5 @@ func (ns *NotificationSender) determineStatus(errs []error) models.NotificationS
 
 // saveStatus сохраняет статус уведомления в хранилище.
 func (ns *NotificationSender) saveStatus(ctx context.Context, notificationID string, status models.NotificationStatus) error {
-	return ns.storageAdder.Add(ctx, "notification.status:"+notificationID, string(status))
+	return ns.storageAdder.Add(ctx, "notification.status:"+notificationID, string(status), 168*time.Hour)
 }

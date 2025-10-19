@@ -11,7 +11,7 @@ import (
 )
 
 type storage interface {
-	Add(ctx context.Context, key string, value interface{}) error
+	Add(ctx context.Context, key string, value interface{}, exp time.Duration) error
 	Get(ctx context.Context, key string) (string, error)
 	Remove(ctx context.Context, key string) error
 	SortedSetAdd(ctx context.Context, set string, value interface{}, score float64) error
@@ -39,12 +39,12 @@ func (nc *NotificationCreator) ScheduleNotification(ctx context.Context, notific
 		return "", err
 	}
 
-	err = nc.storage.Add(ctx, "notification:"+notification.ID, payload)
+	err = nc.storage.Add(ctx, "notification:"+notification.ID, payload, notification.Delay + 24*time.Hour)
 	if err != nil {
 		return "", err
 	}
 
-	err = nc.storage.Add(ctx, "notification.status:"+notification.ID, string(models.StatusScheduled))
+	err = nc.storage.Add(ctx, "notification.status:"+notification.ID, string(models.StatusScheduled), notification.Delay + 168*time.Hour)
 	if err != nil {
 		return "", err
 	}

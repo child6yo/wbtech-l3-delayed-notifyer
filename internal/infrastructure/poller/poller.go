@@ -12,7 +12,7 @@ import (
 
 type storage interface {
 	SortedSetRangeByScore(ctx context.Context, key, min, max string, offset, count int64) ([]string, error)
-	Add(ctx context.Context, key string, value interface{}) error
+	Add(ctx context.Context, key string, value interface{}, exp time.Duration) error
 	Get(ctx context.Context, key string) (string, error)
 	Remove(ctx context.Context, key string) error
 	SortedSetRemove(ctx context.Context, set string, value interface{}) error
@@ -76,7 +76,7 @@ func (rp *RedisPoller) handleNotification(ctx context.Context, notificationID st
 	}
 
 	if err := rp.publisher.Publish(payload); err != nil {
-		_ = rp.storage.Add(ctx, "notification.status:"+notificationID, string(models.StatusFailed))
+		_ = rp.storage.Add(ctx, "notification.status:"+notificationID, string(models.StatusFailed), 168*time.Hour)
 		rp.logger.WithFields("notificationID", notificationID).Error(fmt.Errorf("publishing: %v", err))
 		return
 	}
@@ -89,7 +89,7 @@ func (rp *RedisPoller) handleNotification(ctx context.Context, notificationID st
 		rp.logger.WithFields("notificationID", notificationID).Error(err)
 	}
 
-	if err := rp.storage.Add(ctx, "notification.status:"+notificationID, string(models.StatusSending)); err != nil {
+	if err := rp.storage.Add(ctx, "notification.status:"+notificationID, string(models.StatusSending), 168*time.Hour); err != nil {
 		rp.logger.WithFields("notificationID", notificationID).Error(err)
 	}
 }

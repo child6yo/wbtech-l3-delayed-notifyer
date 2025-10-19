@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	z "github.com/go-redis/redis/v8"
 	"github.com/wb-go/wbf/redis"
@@ -19,8 +20,8 @@ func NewRedis(addr string, password string, db int) *Redis {
 }
 
 // Add добавляет новое значение по ключу.
-func (r *Redis) Add(ctx context.Context, key string, value interface{}) error {
-	return r.client.Set(ctx, key, value)
+func (r *Redis) Add(ctx context.Context, key string, value interface{}, exp time.Duration) error {
+	return r.client.SetWithExpiration(ctx, key, value, exp)
 }
 
 // SortedSetAdd добавляет новое значение в SortedSet.
