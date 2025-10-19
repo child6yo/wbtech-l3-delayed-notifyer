@@ -27,15 +27,24 @@ type NotificationSender struct {
 	emailSender  emailSender
 	tgSender     telegramSender
 	storageAdder storageAdder
+
+	sendRetryAttemps int
+	sendRetryDelay   time.Duration
+	sendRetryBackoff float64
 }
 
 // NewNotificationSender создает новый NotificationSender.
 func NewNotificationSender(
-	emailSender emailSender, tgSender telegramSender, storageAdder storageAdder) *NotificationSender {
+	emailSender emailSender, tgSender telegramSender, storageAdder storageAdder,
+	sendRetryAttemps int, sendRetryDelay time.Duration, sendRetryBackoff float64,
+) *NotificationSender {
 	return &NotificationSender{
-		emailSender:  emailSender,
-		tgSender:     tgSender,
-		storageAdder: storageAdder,
+		emailSender:      emailSender,
+		tgSender:         tgSender,
+		storageAdder:     storageAdder,
+		sendRetryAttemps: sendRetryAttemps,
+		sendRetryDelay:   sendRetryDelay,
+		sendRetryBackoff: sendRetryBackoff,
 	}
 }
 
@@ -87,9 +96,9 @@ func (ns *NotificationSender) sendWithRetry(ctx context.Context, wg *sync.WaitGr
 	defer wg.Done()
 	err := retry.Do(sendFunc,
 		retry.Strategy{
-			Attempts: 10,
-			Delay:    2 * time.Second,
-			Backoff:  2,
+			Attempts: ns.sendRetryAttemps,
+			Delay:    ns.sendRetryDelay,
+			Backoff:  ns.sendRetryBackoff,
 		},
 	)
 	if err != nil {

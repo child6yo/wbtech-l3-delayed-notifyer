@@ -44,6 +44,10 @@ type appConfig struct {
 
 	consumerNumWorkers int
 
+	sendRetryAttemps int
+	sendRetryDelay   time.Duration
+	sendRetryBackoff float64
+
 	emailFrom string
 	emailHost string
 	emailPort string
@@ -74,6 +78,10 @@ func initConfig(configFilePath, envFilePath, envPrefix string) (*appConfig, erro
 	appConfig.pollerTick = cfg.GetInt("poller_tick_milliseconds")
 
 	appConfig.consumerNumWorkers = cfg.GetInt("consumer_num_workers")
+
+	appConfig.sendRetryAttemps = cfg.GetInt("send_retry_attemps")
+	appConfig.sendRetryDelay = time.Duration(cfg.GetInt("send_retry_delay_seconds")) * time.Second
+	appConfig.sendRetryBackoff = cfg.GetFloat64("send_retry_backoff")
 
 	appConfig.emailFrom = cfg.GetString("smtp_from")
 	appConfig.emailHost = cfg.GetString("smtp_host")
@@ -134,7 +142,9 @@ func main() {
 		tgSender.Start(ctx)
 	}()
 
-	ns := usecase.NewNotificationSender(emailSender, tgSender, rds)
+	ns := usecase.NewNotificationSender(
+		emailSender, tgSender, rds,
+		cfg.sendRetryAttemps, cfg.sendRetryDelay, cfg.sendRetryBackoff)
 	cnsHandler := consumer.NewNotificationConsumer(msgChan, logger.NewLoggerAdapter(lgr), ns)
 	wg.Add(1)
 	go func() {

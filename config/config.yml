@@ -15,3 +15,7 @@ smtp_port: "1025"
 poller_tick_milliseconds: 100
 
 consumer_num_workers: 30
+
+send_retry_attemps: 30
+send_retry_delay_seconds: 2
+send_retry_backoff: 2
